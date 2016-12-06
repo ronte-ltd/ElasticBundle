@@ -1,0 +1,14 @@
+services:
+    ronte_ltd_elastic.index_listener:
+        class: RonteLtd\ElasticBundle\EventListener\IndexListener
+        public: false
+        autowire: true;
+        tags:
+            - { name: doctrine.event_listener, event: postPersist }
+            - { name: doctrine.event_listener, event: postUpdate }
+            - { name: doctrine.event_listener, event: postRemove }
+
+    ronte_ltd_elastic.elastic_service:
+        class: RonteLtd\ElasticBundle\Service\ElasticService
+        public: true
+        autowire: true

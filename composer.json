@@ -1,0 +1,21 @@
+{
+    "name": "ronte-ltd/elastic-bundle",
+    "description": "The bundle for the elastic search service",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Alexey Astafev",
+            "email": "efsneiron@gmail.com"
+        }
+    ],
+    "require": {
+        "elasticsearch/elasticsearch": "~5.0",
+        "ronte-ltd/common-bundle": "dev-master"
+    },
+    "autoload": {
+        "psr-4": {
+            "RonteLtd\\ElasticBundle\\": ""
+        }
+    }
+}
