@@ -10,5 +10,6 @@ services:
 
     ronte_ltd_elastic.elastic_service:
         class: RonteLtd\ElasticBundle\Service\ElasticService
+        arguments: ["%ronte_ltd_elastic%"]
         public: true
         autowire: true

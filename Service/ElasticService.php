@@ -12,7 +12,7 @@ namespace RonteLtd\ElasticBundle\Service;
 
 use Elasticsearch\ClientBuilder;
 use RonteLtd\CommonBundle\Entity\EntityInterface;
-use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * ElasticService
@@ -32,18 +32,20 @@ class ElasticService
     private $parameters;
 
     /**
-     * @var ContainerInterface
+     * @var \Symfony\Component\Yaml\Yaml
      */
-    private $container;
+    private $yaml;
 
     /**
      * ElasticService constructor.
-     * @param ContainerInterface $container
+     *
+     * @param array $parameters
+     * @param \Symfony\Component\Yaml\Yaml $yaml
      */
-    public function __construct(ContainerInterface $container)
+    public function __construct(array $parameters, Yaml $yaml)
     {
-        $this->parameters = $container->getParameter('ronte_ltd_elastic');
-        $this->container = $container;
+        $this->parameters = $parameters;
+        $this->yaml = $yaml;
 
         $this->client = ClientBuilder::create()
             ->setHosts($this->parameters['hosts'])
@@ -51,95 +53,121 @@ class ElasticService
     }
 
     /**
-     * Searches documents
+     * Checks whether an index exists
      *
-     * @param array $parameters
-     * @return array
+     * @param $index
+     * @return bool
      */
-    public function search(array $parameters = []): array
+    private function hasIndex($index): bool
     {
-        return $this->client->search($parameters);
+        return $this->client->indices()->exists(['index' => $index]);
     }
 
     /**
-     * Indexes a document
+     * Creates an index
      *
-     * @param EntityInterface $entity
+     * @param array $indexParams
      * @return array
      */
-    public function index(EntityInterface $entity): array
+    public function createIndex(array $indexParams): array
     {
-        return $this->manipulate($entity, 'index');
+        if (false === $this->hasIndex($indexParams['index'])) {
+            $this->client->indices()->create($indexParams);
+        }
+
+        return $this->client->indices()->get(['index' => $indexParams['index']]);
     }
 
     /**
-     * Updates an document
+     * Gets a document
      *
-     * @param EntityInterface $entity
+     * @param string $index
+     * @param string $type
+     * @param int $id
      * @return array
      */
-    public function update(EntityInterface $entity): array
+    public function getDocument(string $index, string $type, int $id): array
     {
-        return $this->manipulate($entity, 'update');
+        return $this->client->get([
+            'index' => $index,
+            'type' => $type,
+            'id' => $id
+        ]);
+    }
+
+    /**
+     * Adds a document
+     *
+     * @param array $data
+     * @return ElasticService
+     */
+    public function addDocument(array $data): ElasticService
+    {
+        $this->createIndex(@$data['schema']);
+        $this->client->index(@$data['params']);
+
+        return $this;
     }
 
     /**
      * Removes a document
      *
-     * @param EntityInterface $entity
+     * @param string $index
+     * @param string $type
+     * @param int $id
      * @return array
      */
-    public function remove(EntityInterface $entity): array
+    public function removeDocument(string $index, string $type, int $id): array
     {
-        return $this->manipulate($entity, 'remove');
+        return $this->client->delete( [
+            'index' => $index,
+            'type' => $type,
+            'id' => $id
+        ]);
     }
 
     /**
-     * Manipulates with a document
+     * Prepares some data from an entity
      *
      * @param EntityInterface $entity
-     * @param $action
      * @return array
      */
-    private function manipulate(EntityInterface $entity, $action): array
+    public function prepareData(EntityInterface $entity)
     {
-        $className = get_class($entity);
+        $data = [];
 
-        foreach ($this->parameters['entities'] as $p) {
-            if ($p['namespace'] == $className) {
-                $indexArray = explode('\\', $className);
-                $index = strtolower(array_pop($indexArray));
-                $entityData = $this->container->get('serializer')->normalize($entity);
-
-                if ($p['groups']) {
-                    $entityData = $this->container->get('serializer')->normalize(
-                        $entity, null, ['groups' => $p['groups']]
-                    );
-                }
-
-                $elasticData = [
-                    'index' => $index,
-                    'type' => $index,
+        if($this->getSchema($entity)) {
+            $schema = $this->getSchema($entity);
+            $data = [
+                'schema' => $schema,
+                'params' => [
+                    'index' => $schema['index'],
+                    'type' => array_keys($schema['body']['mappings'])[0],
                     'id' => $entity->getId(),
-                    'body' => $entityData,
-                ];
+                    'body' => $entity->toArray()
+                ]
+            ];
+        }
 
-                switch ($action) {
-                    case 'index':
-                        return $this->client->index($elasticData);
-                        break;
-                    case 'update':
-                        $elasticData['body'] = [
-                            'doc' => $entityData
-                        ];
+        return $data;
+    }
 
-                        return $this->client->update($elasticData);
-                        break;
-                    case 'remove':
-                        return $this->client->delete($elasticData);
-                        break;
-                }
+    /**
+     * Gets schema of an entity
+     *
+     * @param $entity
+     * @return array
+     */
+    private function getSchema(EntityInterface $entity): array
+    {
+        $schema = [];
+
+        foreach ($this->parameters['entities'] as $e) {
+            if (get_class($entity) == $e['namespace']) {
+                $schema = $this->yaml->parse(file_get_contents($e['schema']));
             }
         }
+
+        return $schema;
     }
 }
