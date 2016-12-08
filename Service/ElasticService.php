@@ -53,6 +53,91 @@ class ElasticService
     }
 
     /**
+     * Adds a document
+     *
+     * @param EntityInterface $entity
+     * @return ElasticService
+     */
+    public function addDocument(EntityInterface $entity): ElasticService
+    {
+        $data = $this->prepareData($entity);
+
+        if ($data) {
+            $this->createIndex($data['schema']);
+            $this->client->index($data['params']);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Removes a document
+     *
+     * @param EntityInterface $entity
+     * @return ElasticService
+     */
+    public function removeDocument(EntityInterface $entity): ElasticService
+    {
+        $data = $this->prepareData($entity);
+
+        if ($data) {
+            $params = [
+                'index' => $data['params']['index'],
+                'type' => $data['params']['type'],
+                'id' => $data['params']['id']
+            ];
+            $this->client->delete($params);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Updates a document
+     *
+     * @param EntityInterface $entity
+     * @return ElasticService
+     */
+    public function updateDocument(EntityInterface $entity): ElasticService
+    {
+        $data = $this->prepareData($entity);
+
+        if ($data) {
+            $data = $data['params'];
+            $data['body']['doc'] = $data['body'];
+            $this->client->update($data);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Prepares some data from an entity
+     *
+     * @param EntityInterface $entity
+     * @return array
+     */
+    private function prepareData(EntityInterface $entity)
+    {
+        $data = [];
+
+        if ($this->getSchema($entity)) {
+            $schema = $this->getSchema($entity);
+            $data = [
+                'schema' => $schema,
+                'params' => [
+                    'index' => $schema['index'],
+                    'type' => array_keys($schema['body']['mappings'])[0],
+                    'id' => $entity->getId(),
+                    'body' => $entity->toArray()
+                ]
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
      * Checks whether an index exists
      *
      * @param $index
@@ -67,89 +152,15 @@ class ElasticService
      * Creates an index
      *
      * @param array $indexParams
-     * @return array
+     * @return ElasticService
      */
-    public function createIndex(array $indexParams): array
+    private function createIndex(array $indexParams): ElasticService
     {
         if (false === $this->hasIndex($indexParams['index'])) {
             $this->client->indices()->create($indexParams);
         }
 
-        return $this->client->indices()->get(['index' => $indexParams['index']]);
-    }
-
-    /**
-     * Gets a document
-     *
-     * @param string $index
-     * @param string $type
-     * @param int $id
-     * @return array
-     */
-    public function getDocument(string $index, string $type, int $id): array
-    {
-        return $this->client->get([
-            'index' => $index,
-            'type' => $type,
-            'id' => $id
-        ]);
-    }
-
-    /**
-     * Adds a document
-     *
-     * @param array $data
-     * @return ElasticService
-     */
-    public function addDocument(array $data): ElasticService
-    {
-        $this->createIndex(@$data['schema']);
-        $this->client->index(@$data['params']);
-
         return $this;
-    }
-
-    /**
-     * Removes a document
-     *
-     * @param string $index
-     * @param string $type
-     * @param int $id
-     * @return array
-     */
-    public function removeDocument(string $index, string $type, int $id): array
-    {
-        return $this->client->delete( [
-            'index' => $index,
-            'type' => $type,
-            'id' => $id
-        ]);
-    }
-
-    /**
-     * Prepares some data from an entity
-     *
-     * @param EntityInterface $entity
-     * @return array
-     */
-    public function prepareData(EntityInterface $entity)
-    {
-        $data = [];
-
-        if($this->getSchema($entity)) {
-            $schema = $this->getSchema($entity);
-            $data = [
-                'schema' => $schema,
-                'params' => [
-                    'index' => $schema['index'],
-                    'type' => array_keys($schema['body']['mappings'])[0],
-                    'id' => $entity->getId(),
-                    'body' => $entity->toArray()
-                ]
-            ];
-        }
-
-        return $data;
     }
 
     /**
