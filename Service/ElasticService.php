@@ -10,8 +10,10 @@
 
 namespace RonteLtd\ElasticBundle\Service;
 
+use Doctrine\ORM\EntityManager;
 use Elasticsearch\ClientBuilder;
 use RonteLtd\CommonBundle\Entity\EntityInterface;
+use RonteLtd\ElasticBundle\Model\Index;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -32,39 +34,138 @@ class ElasticService
     private $parameters;
 
     /**
-     * @var \Symfony\Component\Yaml\Yaml
+     * @var EntityManager
      */
-    private $yaml;
+    private $entityManager;
 
     /**
      * ElasticService constructor.
      *
      * @param array $parameters
-     * @param \Symfony\Component\Yaml\Yaml $yaml
      */
-    public function __construct(array $parameters, Yaml $yaml)
+    public function __construct(array $parameters, EntityManager $entityManager)
     {
         $this->parameters = $parameters;
-        $this->yaml = $yaml;
-
+        $this->entityManager = $entityManager;
         $this->client = ClientBuilder::create()
             ->setHosts($this->parameters['hosts'])
             ->build();
     }
 
     /**
-     * Adds a document
+     * Checks whether an entity is valid
+     *
+     * @param EntityInterface $entity
+     * @return bool
+     */
+    public function isValidEntity(EntityInterface $entity): bool
+    {
+        return in_array(get_class($entity), array_keys($this->parameters['entities']));
+    }
+
+    /**
+     * Checks whether an index exists
+     *
+     * @param $index
+     * @return bool
+     */
+    public function hasIndex(Index $index): bool
+    {
+        return $this->client->indices()->exists(['index' => $index->getIndex()]);
+    }
+
+    /**
+     * Parses a yaml file by path
+     *
+     * @param string $path
+     * @return array
+     */
+    public function parse(string $path): array
+    {
+        return Yaml::parse(file_get_contents($path));
+    }
+
+    /**
+     * Creates as index
+     *
+     * @param EntityInterface $entity
+     * @return Index
+     */
+    public function createIndex(EntityInterface $entity): ?Index
+    {
+        if ($this->isValidEntity($entity)) {
+            $schema = $this->parse($this->parameters['entities'][get_class($entity)]);
+            $index = new Index($schema);
+
+            if (false === $this->hasIndex($index)) {
+                $this->client->indices()->create($index->toCreateArray());
+            }
+
+            return $index;
+        }
+
+        return null;
+    }
+
+    /**
+     * Deletes an index
      *
      * @param EntityInterface $entity
      * @return ElasticService
      */
-    public function addDocument(EntityInterface $entity): ElasticService
+    public function deleteIndex(EntityInterface $entity): ElasticService
     {
-        $data = $this->prepareData($entity);
+        $index = $this->createIndex($entity);
 
-        if ($data) {
-            $this->createIndex($data['schema']);
-            $this->client->index($data['params']);
+        if ($index) {
+            $this->client->indices()->delete($index->toDeleteArray());
+        }
+
+        return $this;
+    }
+
+    /**
+     * Adds documents
+     *
+     * @param array $data
+     * @param Index $index
+     * @return ElasticService
+     */
+    public function addDocuments(array $data = [], Index $index): ElasticService
+    {
+        $params = ['body' => []];
+        $i = 1;
+
+        foreach ($data as $d) {
+
+            if ($this->isValidEntity($d) && $d instanceof EntityInterface) {
+                $params['body'][] = [
+                    'index' => [
+                        '_index' => $index->getIndex(),
+                        '_type' => $index->getType(),
+                        '_id' => $d->getId()
+                    ]
+                ];
+                $params['body'][] = $d->toArray();
+
+                // Every 1000 documents stop and send the bulk request
+                if ($i % 1000 == 0) {
+                    $responses = $this->client->bulk($params);
+
+                    // erase the old bulk request
+                    $params = ['body' => []];
+
+                    // unset the bulk response when you are done to save memory
+                    unset($responses);
+                }
+
+                $i++;
+            }
+        }
+
+        // Send the last batch if it exists
+        if (!empty($params['body'])) {
+            $this->client->bulk($params);
         }
 
         return $this;
@@ -78,107 +179,75 @@ class ElasticService
      */
     public function removeDocument(EntityInterface $entity): ElasticService
     {
-        $data = $this->prepareData($entity);
+        $index = $this->createIndex($entity);
 
-        if ($data) {
-            $params = [
-                'index' => $data['params']['index'],
-                'type' => $data['params']['type'],
-                'id' => $data['params']['id']
-            ];
-            $this->client->delete($params);
+        if ($index) {
+            $index->setId($entity->getId());
+            $this->client->delete($index->toArray());
         }
 
         return $this;
     }
-
-    /**
-     * Updates a document
-     *
-     * @param EntityInterface $entity
-     * @return ElasticService
-     */
-    public function updateDocument(EntityInterface $entity): ElasticService
-    {
-        $data = $this->prepareData($entity);
-
-        if ($data) {
-            $data = $data['params'];
-            $data['body']['doc'] = $data['body'];
-            $this->client->update($data);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Prepares some data from an entity
-     *
-     * @param EntityInterface $entity
-     * @return array
-     */
-    private function prepareData(EntityInterface $entity)
-    {
-        $data = [];
-
-        if ($this->getSchema($entity)) {
-            $schema = $this->getSchema($entity);
-            $data = [
-                'schema' => $schema,
-                'params' => [
-                    'index' => $schema['index'],
-                    'type' => array_keys($schema['body']['mappings'])[0],
-                    'id' => $entity->getId(),
-                    'body' => $entity->toArray()
-                ]
-            ];
-        }
-
-        return $data;
-    }
-
-    /**
-     * Checks whether an index exists
-     *
-     * @param $index
-     * @return bool
-     */
-    private function hasIndex($index): bool
-    {
-        return $this->client->indices()->exists(['index' => $index]);
-    }
-
-    /**
-     * Creates an index
-     *
-     * @param array $indexParams
-     * @return ElasticService
-     */
-    private function createIndex(array $indexParams): ElasticService
-    {
-        if (false === $this->hasIndex($indexParams['index'])) {
-            $this->client->indices()->create($indexParams);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Gets schema of an entity
-     *
-     * @param $entity
-     * @return array
-     */
-    private function getSchema(EntityInterface $entity): array
-    {
-        $schema = [];
-
-        foreach ($this->parameters['entities'] as $e) {
-            if (get_class($entity) == $e['namespace']) {
-                $schema = $this->yaml->parse(file_get_contents($e['schema']));
-            }
-        }
-
-        return $schema;
-    }
+//
+//    /**
+//     * Updates a document
+//     *
+//     * @param EntityInterface $entity
+//     * @return ElasticService
+//     */
+//    public function updateDocument(EntityInterface $entity): ElasticService
+//    {
+//        $schema = $this->getSchema(get_class($entity));
+//
+//        if ($schema) {
+//            $params = [
+//                'index' => $schema['index'],
+//                'type' => array_keys($schema['body']['mappings'])[0],
+//                'id' => $entity->getId(),
+//                'body' => [
+//                    'doc' => $entity->toArray()
+//                ]
+//            ];
+//
+//            $this->client->update($params);
+//        }
+//
+//        return $this;
+//    }
+//
+//    /**
+//     * Reconfigures list of entities in the elastic service
+//     *
+//     * @param $entityNamespace
+//     * @return ElasticService
+//     */
+//    public function reconfigure($entityNamespace): ElasticService
+//    {
+//        $schema = $this->getSchema($entityNamespace);
+//
+//        if ($schema) {
+//            $query = $this->entityManager
+//                ->createQuery("select u from " . $entityNamespace . " u");
+//            $newSchema = $schema;
+//            $newSchema['index'] = 'new_' . $schema['index'];
+//            $this->createIndex($newSchema);
+//            $this->client->indices()->flush(['index' => $newSchema['index']]);
+//            $this->addDocuments($query->getResult(), $newSchema['index']);
+//            $this->deleteIndex(['index' => $schema['index']]);
+//            $this->createIndex($schema);
+//            $params = [
+//                'body' => [
+//                    'source' => [
+//                        'index' => $newSchema['index'],
+//                    ],
+//                    'dest' => [
+//                        'index' => $schema['index']
+//                    ]
+//                ]
+//            ];
+//            $this->client->reindex($params);
+//        }
+//
+//        return $this;
+//    }
 }

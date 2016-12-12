@@ -26,12 +26,7 @@ class Configuration implements ConfigurationInterface
                     ->prototype('scalar')->end()
                 ->end()
                 ->arrayNode('entities')
-                    ->prototype('array')
-                        ->children()
-                            ->scalarNode('namespace')->end()
-                            ->scalarNode('schema')->end()
-                        ->end()
-                    ->end()
+                    ->prototype('scalar')->end()
                 ->end()
             ->end();
 

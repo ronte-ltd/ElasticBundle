@@ -43,7 +43,8 @@ class IndexListener
     public function postPersist(LifecycleEventArgs $eventArgs)
     {
         $entity = $eventArgs->getObject();
-        $this->service->addDocument($entity);
+        $index = $this->service->createIndex($entity);
+        $this->service->addDocuments([$entity], $index);
     }
 
     /**
@@ -54,7 +55,7 @@ class IndexListener
     public function postUpdate(LifecycleEventArgs $eventArgs)
     {
         $entity = $eventArgs->getObject();
-        $this->service->updateDocument($entity);
+//        $this->service->updateDocument($entity);
     }
 
     /**
