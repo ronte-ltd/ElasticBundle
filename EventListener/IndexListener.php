@@ -45,7 +45,9 @@ class IndexListener
         $entity = $eventArgs->getObject();
         $index = $this->service->constructIndex($entity);
 
-        $this->service->addDocuments([$entity], $index);
+        if ($index) {
+            $this->service->addDocuments([$entity], $this->service->saveIndex($index));
+        }
     }
 
     /**
