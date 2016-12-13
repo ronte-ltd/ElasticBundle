@@ -11,6 +11,7 @@
 namespace RonteLtd\ElasticBundle\Service;
 
 use Doctrine\ORM\EntityManager;
+use Elasticsearch\Client;
 use Elasticsearch\ClientBuilder;
 use RonteLtd\CommonBundle\Entity\EntityInterface;
 use RonteLtd\ElasticBundle\Model\Index;
@@ -257,5 +258,15 @@ class ElasticService
         }
 
         return $this;
+    }
+
+    /**
+     * Gets a client of the elastic service
+     *
+     * @return \Elasticsearch\Client
+     */
+    public function getClient(): Client
+    {
+        return $this->client;
     }
 }
