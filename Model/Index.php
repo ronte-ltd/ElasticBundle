@@ -37,33 +37,12 @@ class Index extends AbstractEntity
     /**
      * @var array
      */
-    private $body;
-
-    /**
-     * @var array
-     */
     private $settings;
 
     /**
      * @var array
      */
     private $mappings;
-
-    /**
-     * Index constructor.
-     * @param array $data
-     */
-    public function __construct(array $data)
-    {
-        parent::__construct($data);
-
-        $this->setBody([
-            $this->getType() => [
-                'settings' => $this->getSettings(),
-                'mappings' => $this->getMappings()
-            ]
-        ]);
-    }
 
     /**
      * @return int
@@ -123,30 +102,11 @@ class Index extends AbstractEntity
     }
 
     /**
-     * @return array
-     */
-    public function getBody(): array
-    {
-        return $this->body;
-    }
-
-    /**
-     * @param array $body
-     * @return Index
-     */
-    public function setBody(array $body): Index
-    {
-        $this->body = $body;
-
-        return $this;
-    }
-
-    /**
      * Gets settings
      *
      * @return array
      */
-    public function getSettings(): array
+    public function getSettings(): ?array
     {
         return $this->settings;
     }
@@ -169,7 +129,7 @@ class Index extends AbstractEntity
      *
      * @return array
      */
-    public function getMappings(): array
+    public function getMappings(): ?array
     {
         return $this->mappings;
     }
@@ -195,39 +155,41 @@ class Index extends AbstractEntity
     public function toArray(): array
     {
         return [
-            'id' => $this->getId(),
             'index' => $this->getIndex(),
-            'type' =>  $this->getType()
         ];
     }
 
     /**
-     * Gets an array for creating index
+     * Gets array for creating an index
      *
-     * @return array
+     * @returna array
      */
-    public function toCreateArray()
+    public function toCreateIndexArray(): array
     {
-        return [
-            'index' => $this->getIndex(),
-            'body' => [
-                'settings' => $this->getSettings(),
-                'mappings' => [
-                    $this->getType() => $this->getMappings()
-                ]
-            ]
-        ];
+        $toArray = $this->toArray();
+
+        if ($this->getSettings()) {
+            $toArray['body']['settings'] = $this->getSettings();
+        }
+
+        if ($this->getMappings()) {
+            $toArray['body']['mappings'][$this->getType()] = $this->getMappings();
+        }
+
+        return $toArray;
     }
 
     /**
-     * Gets an array for deleting index
+     * Gets array for removing a document
      *
      * @return array
      */
-    public function toDeleteArray()
+    public function toRemoveUpdateDocumentArray(): array
     {
-        return [
-            'index' => $this->getIndex(),
-        ];
+        $toArray = $this->toArray();
+        $toArray['type'] = $this->getType();
+        $toArray['id'] = $this->getId();
+
+        return $toArray;
     }
 }

@@ -91,20 +91,31 @@ class ElasticService
      * @param EntityInterface $entity
      * @return Index
      */
-    public function createIndex(EntityInterface $entity): ?Index
+    public function constructIndex(EntityInterface $entity): ?Index
     {
         if ($this->isValidEntity($entity)) {
             $schema = $this->parse($this->parameters['entities'][get_class($entity)]);
             $index = new Index($schema);
 
-            if (false === $this->hasIndex($index)) {
-                $this->client->indices()->create($index->toCreateArray());
-            }
-
             return $index;
         }
 
         return null;
+    }
+
+    /**
+     * Saves an index
+     *
+     * @param Index $index
+     * @return Index
+     */
+    public function saveIndex(Index $index): Index
+    {
+        if (false == $this->hasIndex($index)) {
+            $this->client->indices()->create($index->toCreateIndexArray());
+        }
+
+        return $index;
     }
 
     /**
@@ -115,10 +126,12 @@ class ElasticService
      */
     public function deleteIndex(EntityInterface $entity): ElasticService
     {
-        $index = $this->createIndex($entity);
+        $index = $this->constructIndex($entity);
 
         if ($index) {
-            $this->client->indices()->delete($index->toDeleteArray());
+            if ($this->hasIndex($index)) {
+                $this->client->indices()->delete($index->toArray());
+            }
         }
 
         return $this;
@@ -129,9 +142,10 @@ class ElasticService
      *
      * @param array $data
      * @param Index $index
+     * @param int $limit
      * @return ElasticService
      */
-    public function addDocuments(array $data = [], Index $index): ElasticService
+    public function addDocuments(array $data = [], Index $index, int $limit = 1000): ElasticService
     {
         $params = ['body' => []];
         $i = 1;
@@ -148,8 +162,8 @@ class ElasticService
                 ];
                 $params['body'][] = $d->toArray();
 
-                // Every 1000 documents stop and send the bulk request
-                if ($i % 1000 == 0) {
+                // Every $limit documents stop and send the bulk request
+                if ($i % $limit == 0) {
                     $responses = $this->client->bulk($params);
 
                     // erase the old bulk request
@@ -179,75 +193,69 @@ class ElasticService
      */
     public function removeDocument(EntityInterface $entity): ElasticService
     {
-        $index = $this->createIndex($entity);
+        $index = $this->constructIndex($entity);
 
         if ($index) {
             $index->setId($entity->getId());
-            $this->client->delete($index->toArray());
+            $this->client->delete($index->toRemoveUpdateDocumentArray());
         }
 
         return $this;
     }
-//
-//    /**
-//     * Updates a document
-//     *
-//     * @param EntityInterface $entity
-//     * @return ElasticService
-//     */
-//    public function updateDocument(EntityInterface $entity): ElasticService
-//    {
-//        $schema = $this->getSchema(get_class($entity));
-//
-//        if ($schema) {
-//            $params = [
-//                'index' => $schema['index'],
-//                'type' => array_keys($schema['body']['mappings'])[0],
-//                'id' => $entity->getId(),
-//                'body' => [
-//                    'doc' => $entity->toArray()
-//                ]
-//            ];
-//
-//            $this->client->update($params);
-//        }
-//
-//        return $this;
-//    }
-//
-//    /**
-//     * Reconfigures list of entities in the elastic service
-//     *
-//     * @param $entityNamespace
-//     * @return ElasticService
-//     */
-//    public function reconfigure($entityNamespace): ElasticService
-//    {
-//        $schema = $this->getSchema($entityNamespace);
-//
-//        if ($schema) {
-//            $query = $this->entityManager
-//                ->createQuery("select u from " . $entityNamespace . " u");
-//            $newSchema = $schema;
-//            $newSchema['index'] = 'new_' . $schema['index'];
-//            $this->createIndex($newSchema);
-//            $this->client->indices()->flush(['index' => $newSchema['index']]);
-//            $this->addDocuments($query->getResult(), $newSchema['index']);
-//            $this->deleteIndex(['index' => $schema['index']]);
-//            $this->createIndex($schema);
-//            $params = [
-//                'body' => [
-//                    'source' => [
-//                        'index' => $newSchema['index'],
-//                    ],
-//                    'dest' => [
-//                        'index' => $schema['index']
-//                    ]
-//                ]
-//            ];
-//            $this->client->reindex($params);
-//        }
-//
-//        return $this;
-//    }
+
+    /**
+     * Updates a document
+     *
+     * @param EntityInterface $entity
+     * @return ElasticService
+     */
+    public function updateDocument(EntityInterface $entity): ElasticService
+    {
+        $index = $this->constructIndex($entity);
+
+        if ($index) {
+            $index->setId($entity->getId());
+            $params = $index->toRemoveUpdateDocumentArray();
+            $params['body']['doc'] = $entity->toArray();
+            $this->client->update($params);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Reconfigures list of entities in the elastic service
+     *
+     * @param $entityNamespace
+     * @return ElasticService
+     */
+    public function reconfigure($entityNamespace): ElasticService
+    {
+        $entity = new $entityNamespace();
+        $newIndex = $index = $this->constructIndex($entity);
+
+        if ($newIndex) {
+            $query = $this->entityManager
+                ->createQuery("select u from " . $entityNamespace . " u");
+            $newIndex->setIndex('new_' . $newIndex->getIndex());
+            $newIndex = $this->saveIndex($newIndex);
+            $this->addDocuments($query->getResult(), $newIndex);
+            $this->deleteIndex($entity);
+            $index = $this->constructIndex($entity);
+            $this->saveIndex($index);
+            $params = [
+                'body' => [
+                    'source' => [
+                        'index' => $newIndex->getIndex()
+                    ],
+                    'dest' => [
+                        'index' => $index->getIndex()
+                    ]
+                ]
+            ];
+            $this->client->reindex($params);
+        }
+
+        return $this;
+    }
 }
