@@ -122,17 +122,13 @@ class ElasticService
     /**
      * Deletes an index
      *
-     * @param EntityInterface $entity
+     * @param Index $index
      * @return ElasticService
      */
-    public function deleteIndex(EntityInterface $entity): ElasticService
+    public function deleteIndex(Index $index): ElasticService
     {
-        $index = $this->constructIndex($entity);
-
-        if ($index) {
-            if ($this->hasIndex($index)) {
-                $this->client->indices()->delete($index->toArray());
-            }
+        if ($this->hasIndex($index)) {
+            $this->client->indices()->delete($index->toArray());
         }
 
         return $this;
@@ -187,6 +183,29 @@ class ElasticService
     }
 
     /**
+     * Gets a document
+     *
+     * @param EntityInterface $entity
+     * @return array
+     */
+    public function getDocument(EntityInterface $entity): ?array
+    {
+        $index = $this->constructIndex($entity);
+        $result = null;
+
+        if ($index) {
+            $index->setId($entity->getId());
+
+            try {
+                $result = $this->client->get($index->toDocumentArray());
+            } catch (\Exception $exception) {
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Removes a document
      *
      * @param EntityInterface $entity
@@ -196,9 +215,9 @@ class ElasticService
     {
         $index = $this->constructIndex($entity);
 
-        if ($index) {
+        if ($index && $this->getDocument($entity)) {
             $index->setId($entity->getId());
-            $this->client->delete($index->toRemoveUpdateDocumentArray());
+            $this->client->delete($index->toDocumentArray());
         }
 
         return $this;
@@ -214,9 +233,9 @@ class ElasticService
     {
         $index = $this->constructIndex($entity);
 
-        if ($index) {
+        if ($index && $this->getDocument($entity)) {
             $index->setId($entity->getId());
-            $params = $index->toRemoveUpdateDocumentArray();
+            $params = $index->toDocumentArray();
             $params['body']['doc'] = $entity->toArray();
             $this->client->update($params);
         }
@@ -233,16 +252,18 @@ class ElasticService
     public function reconfigure($entityNamespace): ElasticService
     {
         $entity = new $entityNamespace();
-        $newIndex = $index = $this->constructIndex($entity);
+        $newIndex = $this->constructIndex($entity);
+        $index = $this->constructIndex($entity);
 
-        if ($newIndex) {
+        if ($newIndex && $index) {
             $query = $this->entityManager
                 ->createQuery("select u from " . $entityNamespace . " u");
             $newIndex->setIndex('new_' . $newIndex->getIndex());
-            $newIndex = $this->saveIndex($newIndex);
+            $this->deleteIndex($newIndex);
+            $this->saveIndex($newIndex);
             $this->addDocuments($query->getResult(), $newIndex);
-            $this->deleteIndex($entity);
-            $index = $this->constructIndex($entity);
+            $this->client->indices()->flush(['index' => $newIndex->getIndex()]);
+            $this->deleteIndex($index);
             $this->saveIndex($index);
             $params = [
                 'body' => [

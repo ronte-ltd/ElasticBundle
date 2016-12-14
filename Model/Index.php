@@ -184,7 +184,7 @@ class Index extends AbstractEntity
      *
      * @return array
      */
-    public function toRemoveUpdateDocumentArray(): array
+    public function toDocumentArray(): array
     {
         $toArray = $this->toArray();
         $toArray['type'] = $this->getType();

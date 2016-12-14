@@ -150,7 +150,7 @@ class IndexTest extends TestCase
      *
      * @covers \RonteLtd\ElasticBundle\Model\Index::toRemoveUpdateDocumentArray()
      */
-    public function testToRemoveUpdateDocumentArray()
+    public function testToDocumentArray()
     {
         $data = [
             'index' => 'new_index',
@@ -159,7 +159,7 @@ class IndexTest extends TestCase
         ];
 
         $index = new Index($data);
-        self::assertEquals($data, $index->toRemoveUpdateDocumentArray());
+        self::assertEquals($data, $index->toDocumentArray());
     }
 
 }

@@ -1,5 +1,5 @@
-index: 'items'
-type: 'item'
+index: 'test_index'
+type: 'test_type'
 settings:
     number_of_shards: 3
     number_of_replicas: 2
@@ -10,8 +10,5 @@ mappings:
         id:
             type: 'integer'
         name:
-            type: 'string'
-            analyzer: 'standard'
-        nickname:
             type: 'string'
             analyzer: 'standard'
