@@ -39,6 +39,6 @@ mappings:
             analyzer: 'standard'
 ```
 ## Road map
-- [x] EventListener
-- [x] Elasctic Service
+- [x] Event Listener for events of doctrine
+- [x] Elastic Service
 - [x] Tests
