@@ -1,3 +1,0 @@
-#ronte_ltd_elastic_homepage:
-#    path:     /
-#    defaults: { _controller: RonteLtdElasticBundle:Default:index }

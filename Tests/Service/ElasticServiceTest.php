@@ -57,7 +57,6 @@ class ElasticServiceTest extends WebTestCase
         $this->esclient = $this->service->getClient();
         $this->entity = new Entity([
             'name' => 'tester',
-            'nickname' => 'noname'
         ]);
         $this->em->persist($this->entity);
         $this->em->flush($this->entity);
@@ -217,7 +216,7 @@ class ElasticServiceTest extends WebTestCase
     }
 
     /**
-     * Tests reconfigure    
+     * Tests reconfigure
      */
     public function testReconfigure()
     {
