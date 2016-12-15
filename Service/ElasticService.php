@@ -246,10 +246,10 @@ class ElasticService
     /**
      * Reconfigures list of entities in the elastic service
      *
-     * @param $entityNamespace
+     * @param string $entityNamespace
      * @return ElasticService
      */
-    public function reconfigure($entityNamespace): ElasticService
+    public function reconfigure(string $entityNamespace): ElasticService
     {
         $entity = new $entityNamespace();
         $newIndex = $this->constructIndex($entity);
