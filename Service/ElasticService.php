@@ -112,7 +112,7 @@ class ElasticService
      */
     public function saveIndex(Index $index): Index
     {
-        if (false == $this->hasIndex($index)) {
+        if (false === $this->hasIndex($index)) {
             $this->client->indices()->create($index->toCreateIndexArray());
         }
 
