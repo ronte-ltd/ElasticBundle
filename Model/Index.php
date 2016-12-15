@@ -106,7 +106,7 @@ class Index extends AbstractEntity
      *
      * @return array
      */
-    public function getSettings(): ?array
+    public function getSettings(): ? array
     {
         return $this->settings;
     }
@@ -129,7 +129,7 @@ class Index extends AbstractEntity
      *
      * @return array
      */
-    public function getMappings(): ?array
+    public function getMappings(): ? array
     {
         return $this->mappings;
     }

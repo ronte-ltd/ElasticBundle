@@ -159,6 +159,6 @@ class IndexTest extends TestCase
         ];
 
         $index = new Index($data);
-        self::assertEquals($data, $index->toDocumentArray() );
+        self::assertEquals($data, $index->toDocumentArray());
     }
 }

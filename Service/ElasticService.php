@@ -92,7 +92,7 @@ class ElasticService
      * @param EntityInterface $entity
      * @return Index
      */
-    public function constructIndex(EntityInterface $entity): ?Index
+    public function constructIndex(EntityInterface $entity): ? Index
     {
         if ($this->isValidEntity($entity)) {
             $schema = $this->parse($this->parameters['entities'][get_class($entity)]);
@@ -188,7 +188,7 @@ class ElasticService
      * @param EntityInterface $entity
      * @return array
      */
-    public function getDocument(EntityInterface $entity): ?array
+    public function getDocument(EntityInterface $entity): ? array
     {
         $index = $this->constructIndex($entity);
         $result = null;
