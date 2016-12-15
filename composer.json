@@ -10,6 +10,7 @@
         }
     ],
     "require": {
+        "php": ">=7.1.0",
         "elasticsearch/elasticsearch": "~5.0",
         "ronte-ltd/common-bundle": "dev-master"
     },
